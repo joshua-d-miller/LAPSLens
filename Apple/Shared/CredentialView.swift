@@ -15,6 +15,9 @@
 ===============================================================================
  Version   Date         Author    Description
  -------   ----------   -------   --------------------------------------------
+ 3.0.0     2026-11-23   joshua    The password is Accessibility text (its
+                        claude    phonetic spelling) instead of an unlabeled
+                                  group, for VoiceOver and the UI test.
  3.0.0     2026-11-23   joshua    New file.
                         claude
 ===============================================================================
@@ -137,8 +140,12 @@ struct PasswordGroupsView: View {
         }
         .font(.system(size: 28, weight: .medium, design: .monospaced))
         .textSelection(.disabled)
-        .accessibilityElement(children: .ignore)
-        .accessibilityLabel(PhoneticReadout.words(for: password).joined(separator: ", "))
+        // A custom Layout has no Accessibility role of its own, so present the
+        // password to VoiceOver (and UI tests) as text: its phonetic spelling.
+        .accessibilityRepresentation {
+            Text(PhoneticReadout.words(for: password).joined(separator: ", "))
+                .accessibilityLabel("Password")
+        }
     }
 
     private func color(for kind: CharacterKind) -> Color {

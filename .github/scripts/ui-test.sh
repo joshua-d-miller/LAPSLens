@@ -138,8 +138,18 @@ paste_and_read() {
 ### ----------------------------- ###
 ### | Managed preference (MDM) | ###
 ### ----------------------------- ###
-defaults write "/Library/Managed Preferences/$BUNDLE_ID" ClipboardClearSeconds -int 5
+# Written where an MDM profile puts it: computer-level and for the signed-in
+# user, owned by root and readable by everyone.
+for dir in "/Library/Managed Preferences" "/Library/Managed Preferences/$GUI_USER"; do
+    mkdir -p "$dir"
+    plutil -create xml1 "$dir/$BUNDLE_ID.plist"
+    plutil -insert ClipboardClearSeconds -integer 5 "$dir/$BUNDLE_ID.plist"
+    chown root:wheel "$dir/$BUNDLE_ID.plist"; chmod 644 "$dir/$BUNDLE_ID.plist"
+done
 killall cfprefsd 2>/dev/null || true
+as_gui killall cfprefsd 2>/dev/null || true
+sleep 1
+echo "  managed value as the user sees it: $(as_gui defaults read "$BUNDLE_ID" ClipboardClearSeconds 2>&1)"
 
 # ::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::: #
 ### ---------- ###
@@ -186,7 +196,14 @@ as_gui /tmp/pbtypes | grep -qx org.nspasteboard.ConcealedType \
     && pass "clipboard marked org.nspasteboard.ConcealedType" || fail "concealed type missing: $(as_gui /tmp/pbtypes | tr '\n' ' ')"
 clipboard_empty() { [ -z "$(as_gui pbpaste)" ]; }
 # The managed 5 s (not the 30 s default) proves the profile setting is honoured.
-wait_for 12 clipboard_empty && pass "clipboard cleared by the managed 5 s timer" || fail "clipboard not cleared within 12 s"
+copied_at=$(date +%s)
+if wait_for 12 clipboard_empty; then
+    pass "clipboard cleared by the managed 5 s timer ($(( $(date +%s) - copied_at )) s)"
+elif wait_for 30 clipboard_empty; then
+    fail "clipboard cleared after $(( $(date +%s) - copied_at )) s: auto-clear works but the managed 5 s setting was ignored"
+else
+    fail "clipboard not cleared after 42 s"
+fi
 
 # ::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::: #
 ### ---------------------------- ###
@@ -203,6 +220,7 @@ shot 03-escrow-note
 ui "tell application id \"$BUNDLE_ID\" to quit"
 app_gone() { [ -z "$(app_pid)" ]; }
 wait_for 10 app_gone && pass "quit cleanly" || { fail "did not quit"; kill "$(app_pid)" 2>/dev/null; }
-rm -f "/Library/Managed Preferences/$BUNDLE_ID.plist"; killall cfprefsd 2>/dev/null || true
+rm -f "/Library/Managed Preferences/$BUNDLE_ID.plist" "/Library/Managed Preferences/$GUI_USER/$BUNDLE_ID.plist"
+killall cfprefsd 2>/dev/null || true
 
 echo "----"; [ "$FAILURES" -eq 0 ] && echo "All UI checks passed" || { echo "::error::$FAILURES UI check(s) failed"; exit 1; }
