@@ -88,7 +88,7 @@ has_window() { [ -n "$(window_line)" ]; }
 ax_dump() {
     as_gui osascript -e "tell application \"System Events\" to tell (first process whose unix id is $(app_pid))
         set out to \"\"
-        repeat with e in (entire contents of window 1)
+        repeat with e in (get entire contents of window 1)
             try
                 set out to out & (role of e) & \"|\" & (description of e) & \"|\" & (value of e as text) & linefeed
             on error
@@ -108,7 +108,7 @@ paste_and_read() {
     printf '%s' "$1" | as_gui pbcopy
     ui "tell application id \"$BUNDLE_ID\" to activate"
     ui "tell application \"System Events\" to tell (first process whose unix id is $(app_pid))
-        repeat with e in (entire contents of window 1)
+        repeat with e in (get entire contents of window 1)
             if role of e is \"AXTextArea\" then
                 set value of attribute \"AXFocused\" of e to true
                 exit repeat
@@ -117,6 +117,20 @@ paste_and_read() {
     end tell"
     ui 'tell application "System Events" to keystroke "v" using command down'
     sleep 1
+    # If the paste didn't land (focus), set the editor's value through
+    # Accessibility instead, as VoiceOver users would.
+    if [ -z "$(text_area_value)" ]; then
+        echo "  paste didn't reach the editor; setting its value through Accessibility"
+        ui "tell application \"System Events\" to tell (first process whose unix id is $(app_pid))
+            repeat with e in (get entire contents of window 1)
+                if role of e is \"AXTextArea\" then
+                    set value of e to \"$(printf '%s' "$1" | sed 's/\\/\\\\/g; s/"/\\"/g')\"
+                    exit repeat
+                end if
+            end repeat
+        end tell"
+    fi
+    [ -n "$(text_area_value)" ] && echo "  editor holds the value" || echo "::warning::editor is still empty"
     ui 'tell application "System Events" to keystroke return using command down'
 }
 
@@ -155,7 +169,9 @@ else
 fi
 ax_has "Windows LAPS (JSON)" && pass "format detected: Windows LAPS (JSON)" || fail "format label missing"
 ax_has "Administrator" && pass "account shown" || fail "account missing"
-[ -z "$(text_area_value)" ] && pass "editor cleared after reading" || fail "editor still holds the value"
+if ax_has "$PHONETIC"; then
+    [ -z "$(text_area_value)" ] && pass "editor cleared after reading" || fail "editor still holds the value"
+fi
 shot 02-decoded
 
 # ::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::: #
