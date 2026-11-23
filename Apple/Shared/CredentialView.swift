@@ -144,7 +144,6 @@ struct PasswordGroupsView: View {
         // password to VoiceOver (and UI tests) as text: its phonetic spelling.
         .accessibilityRepresentation {
             Text(PhoneticReadout.words(for: password).joined(separator: ", "))
-                .accessibilityLabel("Password")
         }
     }
 

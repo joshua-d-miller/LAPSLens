@@ -16,7 +16,8 @@
      and checks the decoded account, format and password (through the
      password's Accessibility label, the phonetic spelling), that the
      editor was cleared, that Copy puts the password on the clipboard
-     with the concealed type and the managed timer clears it, that an
+     with the concealed type and the managed timer clears it, that the
+     password hides itself on the managed auto-hide timer, that an
      escrow blob shows the "not supported" note, and that the window is
      excluded from screen capture. Screenshots are kept as an artifact
      (the window itself should be missing from them).
@@ -144,6 +145,7 @@ for dir in "/Library/Managed Preferences" "/Library/Managed Preferences/$GUI_USE
     mkdir -p "$dir"
     plutil -create xml1 "$dir/$BUNDLE_ID.plist"
     plutil -insert ClipboardClearSeconds -integer 5 "$dir/$BUNDLE_ID.plist"
+    plutil -insert AutoHideSeconds -integer 30 "$dir/$BUNDLE_ID.plist"
     chown root:wheel "$dir/$BUNDLE_ID.plist"; chmod 644 "$dir/$BUNDLE_ID.plist"
 done
 killall cfprefsd 2>/dev/null || true
@@ -206,12 +208,26 @@ else
 fi
 
 # ::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::: #
+### ------------- ###
+### | Auto-hide | ###
+### ------------- ###
+### The managed 30 s (not the 60 s default) hides the password.            ###
+if wait_for 45 ax_has "Password hidden"; then
+    pass "password hidden by the managed auto-hide timer"
+    ax_has "$PHONETIC" && fail "password still exposed to Accessibility after hiding" \
+        || pass "hidden password no longer readable through Accessibility"
+else
+    fail "password not hidden within 45 s"
+fi
+shot 03-hidden
+
+# ::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::: #
 ### ---------------------------- ###
 ### | Unsupported format note | ###
 ### ---------------------------- ###
 paste_and_read $'-----BEGIN PKCS7-----\nMIIB\n-----END PKCS7-----'
 wait_for 10 ax_has "Decrypt escrow" && pass "escrow blob explained (not supported yet)" || fail "no note for escrow blob"
-shot 03-escrow-note
+shot 04-escrow-note
 
 # ::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::: #
 ### ------------ ###
