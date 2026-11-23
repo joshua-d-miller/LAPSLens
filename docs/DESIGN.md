@@ -1,7 +1,7 @@
-# LAPS for macOS 3.0 — universal LAPS password reader (design draft, Nov 2026)
+# LAPSLens (LAPS for macOS 3.0) — universal LAPS password reader (design draft, Nov 2026)
 
 ## Status (Nov 15, 2026)
-- **Scope (Nov 15):** LAPS for macOS becomes a reader for **any** LAPS password, not only macOSLAPS or AD. The app reads whatever format the org already uses; choosing plaintext vs encrypted storage is the org's decision, not the app's.
+- **Scope (Nov 15):** LAPS for macOS (now LAPSLens) becomes a reader for **any** LAPS password, not only macOSLAPS or AD. The app reads whatever format the org already uses; choosing plaintext vs encrypted storage is the org's decision, not the app's.
 - **Build order decided (Nov 15):** Phase 1 = **Jamf Pro, Active Directory, Entra/Intune (if feasible)**. Phase 2 = a **Custom** source for every other MDM. Paste ships alongside Phase 1 (trivial, universal fallback).
 - **Jamf API client credentials** (client ID + secret) supported so IT techs without a Jamf console login can read LAPS values.
 - **Secret delivery:** password-manager AutoFill (Apple Passwords or any manager that registers as a macOS AutoFill provider) as the recommended way to supply API secrets.
@@ -11,11 +11,11 @@
 
 ## Rewrite kickoff notes (Nov 23, 2026)
 
-### Name
-Options, weakest to strongest:
-- **LAPS UI** (Windows naming): rejected.
-- **LAPS for macOS** (keep): has search history and existing users, but it suggests the app is *for managing Macs*. In 3.0 it runs *on* a Mac and reads Mac **and Windows** passwords.
-- **Recommended:** keep the repo/brand slot but ship the app as **"LAPS Reader"** (display name; bundle ID stays `com.joshua-d-miller.lapsformacos`). Short, says exactly what it does, and works for Windows lookups. Alternatives: "LAPS Lookup", "Admin Password Lookup". Check for App Store and trademark conflicts before committing.
+### Name: **LAPSLens** (decided Nov 23)
+- App, repo and CLI: **LAPSLens** / `joshua-d-miller/LAPSLens` / `lapslens get <name>`. Bundle ID `com.joshua-d-miller.lapslens`.
+- Why: keeps "LAPS" so admins find it and it pairs with macOSLAPS (macOSLAPS writes, LAPSLens reads); "lens" says read-only and gives an icon (a key seen through a lens). It isn't tied to one OS or vendor.
+- Rejected: LAPS UI (Windows naming), LAPS for macOS (implies Mac-only management), LAPS Reader / SpareKey (taken or crowded), AnyLAPS (runner-up).
+- To do: USPTO / App Store / domain check (lapslens.app, .dev). Keep "Microsoft"/"Windows" out of the name and icon.
 
 ### Sign-in per source
 | Source | Interactive OAuth as the tech? | Plan |
@@ -43,7 +43,7 @@ Exact least-privilege roles and permissions per source are documented in [PERMIS
 
 ### Repository housekeeping
 - Rename `master` → `main` (GitHub Settings → Branches → rename; GitHub redirects old URLs and retargets open PRs).
-- Tag the last 2.0 commit `v2.0` so the legacy app stays retrievable, then delete the `LAPS for macOS/` AppKit sources once the 3.0 app target exists.
+- Rename the repo to `LAPSLens` (GitHub Settings → General; old URLs redirect). The last 2.0 commit is already tagged `2.0.0(515)`, so delete the `LAPS for macOS/` AppKit sources once the 3.0 app target exists.
 - Add `SECURITY.md` (how to report vulnerabilities privately), `CONTRIBUTING.md` (how to contribute decoder/preset PRs), issue templates ("my MDM/LAPS tool" preset request).
 
 ### Testing
@@ -138,14 +138,14 @@ A generic REST source configured entirely by profile/settings, so Iru, Mosyle, W
 - Search by computer name or serial across all configured sources; result shows source, format, account, password (large type, groups), phonetic readout, set/expiry date, and pending password during a macOSLAPS hand-over.
 - Copy with clipboard auto-clear; optional "rotate now" where the source supports it (AD expiration, Jamf, Intune/Entra rotate actions — verify each).
 - Local history of lookups (who/when/which Mac/which source) — never passwords.
-- Optional CLI (`lapsformacos get <name>`) for scripted helpdesk workflows.
+- Optional CLI (`lapslens get <name>`) for scripted helpdesk workflows.
 
 ## Relationship to macOSLAPS 4.0
 - macOSLAPS.app keeps **Reveal** (device mode), **Status**, and **Decrypt escrow** for 4.0. Revisit moving admin decrypt here only if 3.0 ships.
 - Only the macOSLAPS CMS decoder waits on the 4.0 escrow format; AD, Jamf, Entra and Paste don't.
 
 ## Identity / platform
-- `com.joshua-d-miller.lapsformacos`, team `9UYK4F9BSM`, signed + notarized by the same CI. Nothing to migrate (2.0 stored only optional user credentials).
+- `com.joshua-d-miller.lapslens`, team `9UYK4F9BSM`, signed + notarized by the same CI. Nothing to migrate (2.0 stored only optional user credentials).
 - SwiftUI; target macOS 14+ (admin Macs are usually current) — to confirm.
 - MSAL for macOS (or a minimal auth-code + PKCE flow via `ASWebAuthenticationSession`) for Entra — decide during Phase 1.
 

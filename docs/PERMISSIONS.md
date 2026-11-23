@@ -30,7 +30,7 @@ Notes:
 
 ## Microsoft Entra ID (Windows LAPS backed up to Entra)
 
-App registration: **public client** (no secret), redirect URI `msauth.com.joshua-d-miller.lapsformacos://auth` (or a loopback/custom scheme if not using MSAL), delegated permissions, admin consent granted.
+App registration: **public client** (no secret), redirect URI `msauth.com.joshua-d-miller.lapslens://auth` (or a loopback/custom scheme if not using MSAL), delegated permissions, admin consent granted.
 
 | Need | Delegated Graph permission | Entra role the tech also needs |
 |---|---|---|

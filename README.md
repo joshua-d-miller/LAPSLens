@@ -11,4 +11,4 @@ Icons made by Freepik http://www.freepik.com from Flaticon https://www.flaticon.
 
 ## 3.0 rewrite (in progress)
 
-LAPS for macOS is being rewritten as a universal LAPS password reader (Active Directory, Jamf Pro, Entra/Intune, then any MDM). See [docs/DESIGN.md](docs/DESIGN.md), [docs/PERMISSIONS.md](docs/PERMISSIONS.md) and [docs/TESTING.md](docs/TESTING.md). The 2.0 AppKit sources above remain until the new app target replaces them.
+LAPS for macOS is being rewritten as **LAPSLens**, a universal LAPS password reader (Active Directory, Jamf Pro, Entra/Intune, then any MDM). See [docs/DESIGN.md](docs/DESIGN.md), [docs/PERMISSIONS.md](docs/PERMISSIONS.md) and [docs/TESTING.md](docs/TESTING.md). The 2.0 AppKit sources above remain until the new app target replaces them.

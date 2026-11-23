@@ -1,6 +1,6 @@
 //
 //  HelperTests.swift
-//  LAPS for macOS
+//  LAPSLens
 //
 //  Created by Joshua D. Miller.
 //  Copyright (c) 2026 Joshua D. Miller. MIT License.
