@@ -1,0 +1,7 @@
+# Files allowed to mention edu.psu, psu.edu or Penn State, and why.
+# check-legacy-names.sh fails on any other file, and on an entry here that
+# no longer needs to be listed.
+Apple/project.yml                                   # copyright credit in Info.plist
+README.md                                           # history and credit to Penn State
+docs/DESIGN.md                                      # legacy 2.0 reference (edu.psu identifiers)
+docs/credits.md                                     # credit to Penn State

@@ -66,6 +66,8 @@ jobs:
       - uses: actions/checkout@v7
       - name: Header and comment style
         run: bash .github/scripts/check-style.sh
+      - name: Legacy (2.0) names only where still needed
+        run: bash .github/scripts/check-legacy-names.sh
       - name: Lint plists, entitlements, shell scripts and test vectors
         run: |
           plutil -lint "Profile Manifests"/*.plist "PLIST Example"/*.plist Apple/macOS/LAPSLens.entitlements

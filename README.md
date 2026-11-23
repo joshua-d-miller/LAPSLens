@@ -32,4 +32,6 @@ open Apple/LAPSLens.xcodeproj
 Core tests: `cd LAPSCore && swift test`.
 
 ## Credits
-Created by Joshua D. Miller. Originally developed at The Pennsylvania State University. MIT License.
+Created and maintained by Joshua D. Miller. LAPSLens started as *LAPS for macOS* at The Pennsylvania State University. Thank you to Penn State for the start, and to everyone who has helped since. See [docs/credits.md](docs/credits.md).
+
+MIT License.
