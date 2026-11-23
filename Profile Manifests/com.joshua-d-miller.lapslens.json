@@ -1,0 +1,24 @@
+{
+  "title": "LAPSLens (com.joshua-d-miller.lapslens)",
+  "description": "LAPSLens 3.x settings. Upload as a Jamf Pro Application & Custom Settings schema for the preference domain com.joshua-d-miller.lapslens. Unset keys use the built-in defaults; set keys can't be changed by the user.",
+  "properties": {
+    "ClipboardClearSeconds": {
+      "title": "Clear clipboard after (seconds)",
+      "description": "Seconds before a copied password is cleared from the clipboard, if nothing else was copied since. 0 = never.",
+      "property_order": 5,
+      "type": "integer",
+      "default": 30,
+      "minimum": 0,
+      "maximum": 3600
+    },
+    "AutoHideSeconds": {
+      "title": "Hide password after (seconds)",
+      "description": "Seconds before a revealed password is hidden again. 0 = never.",
+      "property_order": 10,
+      "type": "integer",
+      "default": 60,
+      "minimum": 0,
+      "maximum": 3600
+    }
+  }
+}

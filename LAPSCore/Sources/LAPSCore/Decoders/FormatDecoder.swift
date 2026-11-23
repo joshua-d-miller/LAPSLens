@@ -1,10 +1,26 @@
-//
-//  FormatDecoder.swift
-//  LAPSLens
-//
-//  Created by Joshua D. Miller.
-//  Copyright (c) 2026 Joshua D. Miller. MIT License.
-//
+/*
+===============================================================================
+ LAPSLens | Core | FormatDecoder.swift
+===============================================================================
+ Version:   3.0.0
+ Author:    Joshua D. Miller, Claude
+ Created:   2026-11-23
+ Updated:   2026-11-23
+
+ Purpose:
+     Detects and decodes a raw LAPS value: plaintext, Windows LAPS JSON, Entra
+     / Graph responses. Recognises macOSLAPS CMS escrow and Windows LAPS
+     encrypted blobs and explains why they can't be read.
+===============================================================================
+ CHANGELOG
+===============================================================================
+ Version   Date         Author    Description
+ -------   ----------   -------   --------------------------------------------
+ 3.0.0     2026-11-23   joshua    New file.
+                        claude
+===============================================================================
+*/
+
 import Foundation
 
 /// Turns a raw value read from a source (AD attribute, Jamf EA, Graph response,

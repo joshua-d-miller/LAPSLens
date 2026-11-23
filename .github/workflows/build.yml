@@ -1,0 +1,444 @@
+name: Build & Test
+
+# Builds LAPSLens on a GitHub-hosted Mac (no local Xcode needed), signs and
+# notarizes it, packages it, smoke-tests the pkg on macOS 27 / 26 / 15 (Apple
+# silicon and Intel; pull requests use 27 and 26 Intel, main, releases and a
+# weekly run use all), drives the app in a UI test, and attaches everything to
+# a release. Modelled on macOSLAPS's build.yml; same secret names, so the same
+# certificates and API key work.
+#
+# To release: run this workflow on main with "release" ticked (Actions → Build &
+# Test → Run workflow). The build is 3.0.0.<1000 + run number>; once every test
+# passes, the release job creates that tag and the prerelease, with
+# .github/release-notes/<version>.md and the signed, notarized pkg.
+#
+# Signing is optional. With no secrets set, the app is ad-hoc signed and the pkg
+# unsigned (fine for testing via `sudo installer -pkg`). Add these to the
+# "signing" environment (Settings → Environments) or as repository secrets to
+# get Developer ID signed + notarized output (docs/SIGNING.md):
+#   DEVID_APP_P12        base64 of the "Developer ID Application" .p12
+#   DEVID_INSTALLER_P12  base64 of the "Developer ID Installer" .p12
+#   P12_PASSWORD         password for both .p12 files
+#   ASC_KEY_ID           App Store Connect API key ID   (for notarytool)
+#   ASC_ISSUER_ID        App Store Connect issuer ID
+#   ASC_KEY_P8           contents of the AuthKey_XXXX.p8 file
+#   (or AC_APPLE_ID / AC_APP_PASSWORD / AC_TEAM_ID instead of the ASC_* key)
+
+on:
+  push:
+    branches: [main, "claude/**"]
+    tags: ['3.*']
+  release:
+    types: [published]
+  pull_request:
+    paths-ignore:
+      - 'docs/**'
+      - '**.md'
+  workflow_dispatch:
+    inputs:
+      release:
+        description: >-
+          Publish this build as a prerelease (main only). Its build number is
+          1000 + run number; once every test passes, the release job creates
+          the tag 3.0.0.<build> and the prerelease, with the notes and pkg.
+        type: boolean
+        default: false
+  # The full macOS matrix weekly, so a problem on an OS that pull requests
+  # skip shows up even between releases.
+  schedule:
+    - cron: '41 7 * * 1'
+
+# A new push to a pull request cancels that PR's older run, so superseded runs
+# don't hold the macOS runners. Pushes to main, tags and releases always finish.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+# Read-only by default; only the release job can write.
+permissions:
+  contents: read
+
+jobs:
+  lint:
+    runs-on: macos-26
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v7
+      - name: Header and comment style
+        run: bash .github/scripts/check-style.sh
+      - name: Lint plists, entitlements, shell scripts and test vectors
+        run: |
+          plutil -lint "Profile Manifests"/*.plist "PLIST Example"/*.plist Apple/macOS/LAPSLens.entitlements
+          for f in $(git ls-files '*.sh'); do bash -n "$f" || { echo "::error file=$f::bash syntax"; exit 1; }; done
+          python3 -m json.tool Spec/vectors/formats.json >/dev/null
+          python3 -m json.tool "Profile Manifests/com.joshua-d-miller.lapslens.json" >/dev/null
+      - name: Every setting is in the profile manifests and the example
+        run: |
+          python3 - <<'PY'
+          import json, plistlib, re
+          src = open("Apple/Shared/Preferences.swift").read()
+          block = src[src.index("enum PreferenceKey"):]
+          block = block[:block.index("\n}\n")]
+          keys = set(re.findall(r'static let \w+ = "(\w+)"', block))
+          d = "com.joshua-d-miller.lapslens"
+          files = {
+              f"Profile Manifests/{d}.json": set(json.load(open(f"Profile Manifests/{d}.json"))["properties"]),
+              f"Profile Manifests/{d}.plist": {k["pfm_name"] for k in plistlib.load(open(f"Profile Manifests/{d}.plist", "rb"))["pfm_subkeys"]},
+              f"PLIST Example/{d}.plist": set(plistlib.load(open(f"PLIST Example/{d}.plist", "rb"))),
+          }
+          bad = 0
+          for path, have in files.items():
+              for k in sorted(keys - have):
+                  print(f"::error file={path}::missing setting {k}"); bad += 1
+          print(f"{len(keys)} settings checked in {len(files)} files")
+          raise SystemExit(1 if bad else 0)
+          PY
+
+  core-macos:
+    name: LAPSCore (macOS)
+    runs-on: macos-26
+    timeout-minutes: 20
+    defaults:
+      run:
+        working-directory: LAPSCore
+    steps:
+      - uses: actions/checkout@v7
+      - run: swift --version
+      - name: Unit tests and shared vectors
+        run: swift test --parallel
+
+  core-linux:
+    # LAPSCore must stay free of Apple-only frameworks (Phase C reuses its vectors).
+    name: LAPSCore (Linux)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    container: swift:6.1
+    defaults:
+      run:
+        working-directory: LAPSCore
+    steps:
+      - uses: actions/checkout@v7
+      - name: Unit tests and shared vectors
+        run: swift test --parallel
+
+  build:
+    # Pull requests from forks never receive secrets and produce unsigned test builds.
+    environment: signing
+    runs-on: macos-26
+    timeout-minutes: 45
+    outputs:
+      pkg: ${{ steps.package.outputs.pkg }}
+      version: ${{ steps.version.outputs.version }}
+      signed: ${{ steps.sign.outputs.signed }}
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Show toolchain
+        run: xcodebuild -version && swift --version
+
+      - name: Set build number
+        id: version
+        env:
+          RELEASE: ${{ inputs.release }}
+        run: |
+          # Release tags carry the build number (3.0.0.1042). Other builds, and
+          # releases made with workflow_dispatch "release", use 1000 + run number.
+          short=$(awk -F'"' '/MARKETING_VERSION:/{print $2; exit}' Apple/project.yml)
+          if [[ "$GITHUB_REF" == refs/tags/* && "$GITHUB_REF_NAME" =~ ^([0-9]+\.[0-9]+\.[0-9]+)\.([0-9]+)$ ]]; then
+            [ "${BASH_REMATCH[1]}" = "$short" ] || { echo "::error::Tag version ${BASH_REMATCH[1]} != project.yml $short"; exit 1; }
+            build=${BASH_REMATCH[2]}
+          else
+            build=$((1000 + GITHUB_RUN_NUMBER))
+            if [ "${RELEASE:-false}" = "true" ] && [ "$GITHUB_REF" != "refs/heads/main" ]; then
+              echo "::error::A release is built from main only (this run is on $GITHUB_REF)."; exit 1
+            fi
+          fi
+          echo "Building $short ($build)"
+          echo "short=$short" >> "$GITHUB_OUTPUT"
+          echo "build=$build" >> "$GITHUB_OUTPUT"
+          echo "version=$short.$build" >> "$GITHUB_OUTPUT"
+
+      - name: Build universal app
+        id: binary
+        env:
+          SHORT: ${{ steps.version.outputs.short }}
+          BUILD: ${{ steps.version.outputs.build }}
+        run: |
+          brew install xcodegen >/dev/null
+          xcodegen generate --spec Apple/project.yml
+          # Signed below with the committed entitlements (same as macOSLAPS: build
+          # unsigned, then codesign), so CI needs no provisioning profile.
+          xcodebuild build \
+            -project Apple/LAPSLens.xcodeproj -scheme LAPSLens -configuration Release \
+            -derivedDataPath build/dd -destination 'generic/platform=macOS' \
+            -skipPackagePluginValidation \
+            ARCHS="arm64 x86_64" ONLY_ACTIVE_ARCH=NO CODE_SIGNING_ALLOWED=NO \
+            MARKETING_VERSION="$SHORT" CURRENT_PROJECT_VERSION="$BUILD" > xcodebuild.log 2>&1 || status=$?
+          status=${status:-0}
+          grep -E 'error:|warning:|BUILD (SUCCEEDED|FAILED)' xcodebuild.log | grep -v appintentsmetadataprocessor || true
+          [ "$status" -eq 0 ] || { tail -80 xcodebuild.log; exit "$status"; }
+          APP=build/dd/Build/Products/Release/LAPSLens.app
+          lipo -archs "$APP/Contents/MacOS/LAPSLens"
+          got="$(/usr/libexec/PlistBuddy -c 'Print CFBundleShortVersionString' "$APP/Contents/Info.plist").$(/usr/libexec/PlistBuddy -c 'Print CFBundleVersion' "$APP/Contents/Info.plist")"
+          [ "$got" = "$SHORT.$BUILD" ] || { echo "::error::Info.plist says $got"; exit 1; }
+          echo "app=$APP" >> "$GITHUB_OUTPUT"
+
+      - name: Sign app
+        id: sign
+        env:
+          DEVID_APP_P12: ${{ secrets.DEVID_APP_P12 }}
+          DEVID_INSTALLER_P12: ${{ secrets.DEVID_INSTALLER_P12 }}
+          P12_PASSWORD: ${{ secrets.P12_PASSWORD }}
+          APP: ${{ steps.binary.outputs.app }}
+        run: |
+          ENT=Apple/macOS/LAPSLens.entitlements
+          if [ -z "$DEVID_APP_P12" ]; then
+            echo "::warning::No signing secrets set. Producing an ad-hoc signed TEST build."
+            codesign --force --sign - --options runtime --entitlements "$ENT" "$APP"
+            echo "signed=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          KC="$RUNNER_TEMP/build.keychain-db"; KCPW=$(uuidgen)
+          security create-keychain -p "$KCPW" "$KC"
+          security set-keychain-settings -lut 21600 "$KC"
+          security unlock-keychain -p "$KCPW" "$KC"
+          echo "$DEVID_APP_P12"       | base64 --decode > "$RUNNER_TEMP/app.p12"
+          echo "$DEVID_INSTALLER_P12" | base64 --decode > "$RUNNER_TEMP/inst.p12"
+          security import "$RUNNER_TEMP/app.p12"  -k "$KC" -P "$P12_PASSWORD" -T /usr/bin/codesign -T /usr/bin/productsign -T /usr/bin/productbuild -T /usr/bin/pkgbuild
+          security import "$RUNNER_TEMP/inst.p12" -k "$KC" -P "$P12_PASSWORD" -T /usr/bin/codesign -T /usr/bin/productsign -T /usr/bin/productbuild -T /usr/bin/pkgbuild
+          rm -f "$RUNNER_TEMP"/*.p12
+          # The .p12 files may hold only the leaf certificates, so add Apple's
+          # Developer ID G2 intermediate to complete the chain.
+          curl -fsSL https://www.apple.com/certificateauthority/DeveloperIDG2CA.cer -o "$RUNNER_TEMP/DeveloperIDG2CA.cer"
+          security import "$RUNNER_TEMP/DeveloperIDG2CA.cer" -k "$KC" || true
+          security set-key-partition-list -S apple-tool:,apple: -s -k "$KCPW" "$KC" > /dev/null
+          security list-keychains -d user -s "$KC" $(security list-keychains -d user | tr -d '"')
+          APP_ID=$(security find-identity -v -p codesigning "$KC" | awk -F'"' '/Developer ID Application/{print $2; exit}')
+          INST_ID=$(security find-identity -v "$KC" | awk -F'"' '/Developer ID Installer/{print $2; exit}')
+          # Apple's timestamp server sometimes fails for a while; try again before giving up.
+          retry() { for n in 1 2 3 4 5; do "$@" && return 0; echo "::warning::$1 failed (try $n of 5); retrying in 30 s"; sleep 30; done; return 1; }
+          retry codesign --force --timestamp --options runtime --entitlements "$ENT" --sign "$APP_ID" "$APP"
+          codesign --verify --strict --deep --verbose=2 "$APP"
+          codesign -dv "$APP" 2>&1 | grep -E '^Identifier|^TeamIdentifier'
+          echo "KC=$KC" >> "$GITHUB_ENV"
+          echo "APP_ID=$APP_ID" >> "$GITHUB_ENV"
+          echo "INST_ID=$INST_ID" >> "$GITHUB_ENV"
+          echo "signed=true" >> "$GITHUB_OUTPUT"
+
+      - name: Zip app
+        env:
+          APP: ${{ steps.binary.outputs.app }}
+          VERSION: ${{ steps.version.outputs.version }}
+        run: mkdir -p dist-app && ditto -c -k --keepParent "$APP" "dist-app/LAPSLens-app-$VERSION.zip"
+
+      - name: Notarize and staple LAPSLens.app
+        # Pull request builds are signed but not notarized (Apple's queue can
+        # hold a run for many minutes). main, tags and releases notarize.
+        if: steps.sign.outputs.signed == 'true' && github.event_name != 'pull_request'
+        env:
+          ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
+          ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
+          ASC_KEY_P8: ${{ secrets.ASC_KEY_P8 }}
+          AC_APPLE_ID: ${{ secrets.AC_APPLE_ID }}
+          AC_APP_PASSWORD: ${{ secrets.AC_APP_PASSWORD }}
+          AC_TEAM_ID: ${{ secrets.AC_TEAM_ID }}
+          APP: ${{ steps.binary.outputs.app }}
+          VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          if [ -n "$ASC_KEY_ID" ] && [ -n "$ASC_KEY_P8" ]; then
+            key="$RUNNER_TEMP/AuthKey-app.p8"; printf '%s' "$ASC_KEY_P8" > "$key"
+            auth=(--key "$key" --key-id "$ASC_KEY_ID" --issuer "$ASC_ISSUER_ID")
+          elif [ -n "$AC_APPLE_ID" ] && [ -n "$AC_APP_PASSWORD" ]; then
+            auth=(--apple-id "$AC_APPLE_ID" --password "$AC_APP_PASSWORD" --team-id "${AC_TEAM_ID:-9UYK4F9BSM}")
+          else
+            echo "::error::Signing secrets are set but no notarization credentials (ASC_* or AC_*)."; exit 1
+          fi
+          zip="dist-app/LAPSLens-app-$VERSION.zip"
+          out=$(xcrun notarytool submit "$zip" "${auth[@]}" --wait --output-format json)
+          echo "$out"
+          status=$(echo "$out" | python3 -c 'import json,sys; print(json.load(sys.stdin).get("status",""))')
+          if [ "$status" != "Accepted" ]; then
+            id=$(echo "$out" | python3 -c 'import json,sys; print(json.load(sys.stdin).get("id",""))')
+            [ -n "$id" ] && xcrun notarytool log "$id" "${auth[@]}" || true
+            echo "::error::Notarization status for LAPSLens.app: $status"; exit 1
+          fi
+          rm -f "$RUNNER_TEMP/AuthKey-app.p8"
+          xcrun stapler staple "$APP"
+          xcrun stapler validate "$APP"
+          spctl -a -vv -t exec "$APP"
+          # Re-zip so the artifact carries the stapled ticket.
+          rm -f "$zip"; ditto -c -k --keepParent "$APP" "$zip"
+
+      - name: Build pkg
+        id: package
+        env:
+          APP: ${{ steps.binary.outputs.app }}
+          VERSION: ${{ steps.version.outputs.version }}
+          SIGNED: ${{ steps.sign.outputs.signed }}
+        run: |
+          if [ "$SIGNED" = "true" ]; then
+            pkg=$(bash packaging/build-pkg.sh "$APP" "$VERSION" dist "$INST_ID" "$KC" | tail -1)
+          else
+            pkg=$(bash packaging/build-pkg.sh "$APP" "$VERSION" dist | tail -1)
+          fi
+          ls -l dist
+          pkgutil --check-signature "dist/$pkg" | head -3 || true
+          [ -f "dist/$pkg" ] || { echo "::error::missing dist/$pkg"; exit 1; }
+          echo "pkg=$pkg" >> "$GITHUB_OUTPUT"
+
+      - name: Check signing certificate expiry
+        if: steps.sign.outputs.signed == 'true'
+        run: |
+          # Developer ID certificates last a limited time. Warn a month ahead so the
+          # DEVID_* secrets get renewed before releases can no longer be signed.
+          for name in "Developer ID Application" "Developer ID Installer"; do
+            end=$(security find-certificate -c "$name" -p "$KC" | openssl x509 -noout -enddate | cut -d= -f2)
+            days=$(( ( $(date -j -f "%b %e %T %Y %Z" "$end" +%s) - $(date +%s) ) / 86400 ))
+            echo "$name expires $end ($days days)"
+            if [ "$days" -lt 30 ]; then
+              echo "::warning::$name certificate expires in $days days. Renew it and update the DEVID_* secrets."
+            fi
+          done
+
+      - name: Notarize pkg
+        if: steps.sign.outputs.signed == 'true' && github.event_name != 'pull_request'
+        env:
+          ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
+          ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
+          ASC_KEY_P8: ${{ secrets.ASC_KEY_P8 }}
+          AC_APPLE_ID: ${{ secrets.AC_APPLE_ID }}
+          AC_APP_PASSWORD: ${{ secrets.AC_APP_PASSWORD }}
+          AC_TEAM_ID: ${{ secrets.AC_TEAM_ID }}
+          PKG: dist/${{ steps.package.outputs.pkg }}
+        run: |
+          if [ -n "$ASC_KEY_ID" ] && [ -n "$ASC_KEY_P8" ]; then
+            key="$RUNNER_TEMP/AuthKey.p8"; printf '%s' "$ASC_KEY_P8" > "$key"
+            auth=(--key "$key" --key-id "$ASC_KEY_ID" --issuer "$ASC_ISSUER_ID")
+          else
+            auth=(--apple-id "$AC_APPLE_ID" --password "$AC_APP_PASSWORD" --team-id "${AC_TEAM_ID:-9UYK4F9BSM}")
+          fi
+          out=$(xcrun notarytool submit "$PKG" "${auth[@]}" --wait --output-format json)
+          echo "$out"
+          status=$(echo "$out" | python3 -c 'import json,sys; print(json.load(sys.stdin).get("status",""))')
+          if [ "$status" != "Accepted" ]; then
+            id=$(echo "$out" | python3 -c 'import json,sys; print(json.load(sys.stdin).get("id",""))')
+            [ -n "$id" ] && xcrun notarytool log "$id" "${auth[@]}" || true
+            echo "::error::Notarization status for $PKG: $status"; exit 1
+          fi
+          xcrun stapler staple "$PKG"
+          xcrun stapler validate "$PKG"
+          rm -f "$RUNNER_TEMP/AuthKey.p8"
+
+      - name: Checksums
+        run: cd dist && shasum -a 256 *.pkg | tee SHA256SUMS.txt
+
+      - uses: actions/upload-artifact@v7
+        with:
+          name: LAPSLens-app-${{ steps.version.outputs.version }}
+          path: dist-app/*.zip
+
+      - uses: actions/upload-artifact@v7
+        with:
+          name: LAPSLens-${{ steps.version.outputs.version }}
+          path: |
+            dist/*.pkg
+            dist/SHA256SUMS.txt
+            xcodebuild.log
+
+      - name: Clean up signing keychain
+        if: always()
+        run: '[ -n "${KC:-}" ] && security delete-keychain "$KC" || true'
+
+  smoke-test:
+    needs: build
+    strategy:
+      fail-fast: false
+      matrix:
+        # macOS n-2 (27, 26, 15). Pull requests: the newest on Apple silicon
+        # and the newest on Intel; main, releases and the weekly run: all.
+        os: ${{ fromJSON(github.event_name == 'pull_request' && '["xcode-27", "macos-26-intel"]' || '["macos-15", "macos-15-intel", "macos-26", "macos-26-intel", "xcode-27"]') }}
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/download-artifact@v8
+        with:
+          name: LAPSLens-${{ needs.build.outputs.version }}
+          path: artifact
+      - name: Install and check
+        env:
+          VERSION: ${{ needs.build.outputs.version }}
+          SIGNED: ${{ needs.build.outputs.signed }}
+        run: sudo -E bash .github/scripts/smoke-test.sh "artifact/dist/${{ needs.build.outputs.pkg }}"
+
+  ui-test:
+    needs: build
+    strategy:
+      fail-fast: false
+      matrix:
+        # Runners with a signed-in screen.
+        os: ${{ fromJSON(github.event_name == 'pull_request' && '["xcode-27"]' || '["macos-26", "xcode-27"]') }}
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/download-artifact@v8
+        with:
+          name: LAPSLens-${{ needs.build.outputs.version }}
+          path: artifact
+      - name: Drive the app
+        run: sudo bash .github/scripts/ui-test.sh "artifact/dist/${{ needs.build.outputs.pkg }}" "$RUNNER_TEMP/screenshots"
+      - uses: actions/upload-artifact@v7
+        if: always()
+        with:
+          name: screenshots-${{ matrix.os }}
+          path: ${{ runner.temp }}/screenshots
+          retention-days: 14
+
+  release:
+    # A release is published only when every test job passed.
+    needs: [lint, core-macos, core-linux, build, smoke-test, ui-test]
+    permissions:
+      contents: write
+    if: >-
+      github.event_name == 'release' || startsWith(github.ref, 'refs/tags/') ||
+      (github.event_name == 'workflow_dispatch' && inputs.release && github.ref == 'refs/heads/main')
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/download-artifact@v8
+        with:
+          name: LAPSLens-${{ needs.build.outputs.version }}
+          path: artifact
+      - name: Create prerelease
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ needs.build.outputs.version }}
+          SIGNED: ${{ needs.build.outputs.signed }}
+        run: |
+          short=${VERSION%.*}; build=${VERSION##*.}
+          notes=".github/release-notes/${short}.md"
+          if [ -f "$notes" ]; then cp "$notes" notes.md; else echo "Automated build $VERSION from ${GITHUB_SHA::7}." > notes.md; fi
+          printf '\n---\nBuild %s from commit %s.\n' "$build" "${GITHUB_SHA::7}" >> notes.md
+          if [ "$SIGNED" != "true" ]; then
+            printf '\n**UNSIGNED TEST BUILD.** Install with `sudo installer -pkg <file> -target /`. Not for production.\n' >> notes.md
+          fi
+          files=(artifact/dist/*.pkg artifact/dist/SHA256SUMS.txt)
+          tag="$GITHUB_REF_NAME"
+          if [ "$GITHUB_EVENT_NAME" = "workflow_dispatch" ]; then
+            tag="$VERSION"
+            if gh release view "$tag" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1 \
+               || git ls-remote --exit-code --tags origin "refs/tags/$tag" >/dev/null 2>&1; then
+              echo "::error::$tag already exists; nothing was published."; exit 1
+            fi
+            gh release create "$tag" --repo "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" --prerelease \
+              --title "LAPSLens ${short} (${build})" --notes-file notes.md "${files[@]}"
+          elif gh release view "$tag" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            gh release edit "$tag" --repo "$GITHUB_REPOSITORY" --prerelease \
+              --title "LAPSLens ${short} (${build})" --notes-file notes.md
+            gh release upload "$tag" --repo "$GITHUB_REPOSITORY" --clobber "${files[@]}"
+          else
+            gh release create "$tag" --repo "$GITHUB_REPOSITORY" --prerelease \
+              --title "LAPSLens ${short} (${build})" --notes-file notes.md "${files[@]}"
+          fi

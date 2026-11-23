@@ -1,10 +1,25 @@
-//
-//  WindowsFileTime.swift
-//  LAPSLens
-//
-//  Created by Joshua D. Miller.
-//  Copyright (c) 2026 Joshua D. Miller. MIT License.
-//
+/*
+===============================================================================
+ LAPSLens | Core | WindowsFileTime.swift
+===============================================================================
+ Version:   3.0.0
+ Author:    Joshua D. Miller, Claude
+ Created:   2026-11-23
+ Updated:   2026-11-23
+
+ Purpose:
+     Windows FILETIME conversion for AD expiration attributes (decimal) and the
+     Windows LAPS JSON update time (hex).
+===============================================================================
+ CHANGELOG
+===============================================================================
+ Version   Date         Author    Description
+ -------   ----------   -------   --------------------------------------------
+ 3.0.0     2026-11-23   joshua    New file.
+                        claude
+===============================================================================
+*/
+
 import Foundation
 
 /// Windows FILETIME: 100-nanosecond intervals since 1601-01-01 UTC.

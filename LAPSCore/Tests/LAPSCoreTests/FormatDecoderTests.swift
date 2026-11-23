@@ -1,10 +1,25 @@
-//
-//  FormatDecoderTests.swift
-//  LAPSLens
-//
-//  Created by Joshua D. Miller.
-//  Copyright (c) 2026 Joshua D. Miller. MIT License.
-//
+/*
+===============================================================================
+ LAPSLens | Tests | FormatDecoderTests.swift
+===============================================================================
+ Version:   3.0.0
+ Author:    Joshua D. Miller, Claude
+ Created:   2026-11-23
+ Updated:   2026-11-23
+
+ Purpose:
+     Format detection and decoding, including values that look like a format
+     but are plaintext passwords.
+===============================================================================
+ CHANGELOG
+===============================================================================
+ Version   Date         Author    Description
+ -------   ----------   -------   --------------------------------------------
+ 3.0.0     2026-11-23   joshua    New file.
+                        claude
+===============================================================================
+*/
+
 import Foundation
 import XCTest
 @testable import LAPSCore

@@ -34,13 +34,10 @@ targets:
       - path: macOS
     dependencies:
       - package: LAPSCore
-    entitlements:
-      path: macOS/LAPSLens.entitlements
-      properties:
-        com.apple.security.app-sandbox: true
-        com.apple.security.network.client: true
     settings:
       base:
+        # Committed file; CI signs with it too (.github/workflows/build.yml).
+        CODE_SIGN_ENTITLEMENTS: macOS/LAPSLens.entitlements
         PRODUCT_NAME: LAPSLens
         PRODUCT_BUNDLE_IDENTIFIER: com.joshua-d-miller.lapslens
         GENERATE_INFOPLIST_FILE: YES

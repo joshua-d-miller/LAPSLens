@@ -1,10 +1,25 @@
-//
-//  PasteLookupModel.swift
-//  LAPSLens
-//
-//  Created by Joshua D. Miller.
-//  Copyright (c) 2026 Joshua D. Miller. MIT License.
-//
+/*
+===============================================================================
+ LAPSLens | App | PasteLookupModel.swift
+===============================================================================
+ Version:   3.0.0
+ Author:    Joshua D. Miller, Claude
+ Created:   2026-11-23
+ Updated:   2026-11-23
+
+ Purpose:
+     The Paste source: decodes a value copied from any console and clears the
+     editor once it is read.
+===============================================================================
+ CHANGELOG
+===============================================================================
+ Version   Date         Author    Description
+ -------   ----------   -------   --------------------------------------------
+ 3.0.0     2026-11-23   joshua    New file.
+                        claude
+===============================================================================
+*/
+
 import Foundation
 import Observation
 import LAPSCore

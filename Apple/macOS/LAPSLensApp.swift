@@ -1,10 +1,25 @@
-//
-//  LAPSLensApp.swift
-//  LAPSLens
-//
-//  Created by Joshua D. Miller.
-//  Copyright (c) 2026 Joshua D. Miller. MIT License.
-//
+/*
+===============================================================================
+ LAPSLens | App | LAPSLensApp.swift
+===============================================================================
+ Version:   3.0.0
+ Author:    Joshua D. Miller, Claude
+ Created:   2026-11-23
+ Updated:   2026-11-23
+
+ Purpose:
+     App entry point for macOS: the main window (kept out of screen capture)
+     and Settings.
+===============================================================================
+ CHANGELOG
+===============================================================================
+ Version   Date         Author    Description
+ -------   ----------   -------   --------------------------------------------
+ 3.0.0     2026-11-23   joshua    New file.
+                        claude
+===============================================================================
+*/
+
 import SwiftUI
 
 @main

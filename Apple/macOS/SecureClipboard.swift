@@ -1,10 +1,26 @@
-//
-//  SecureClipboard.swift
-//  LAPSLens
-//
-//  Created by Joshua D. Miller.
-//  Copyright (c) 2026 Joshua D. Miller. MIT License.
-//
+/*
+===============================================================================
+ LAPSLens | App | SecureClipboard.swift
+===============================================================================
+ Version:   3.0.0
+ Author:    Joshua D. Miller, Claude
+ Created:   2026-11-23
+ Updated:   2026-11-23
+
+ Purpose:
+     Copies a secret with the nspasteboard.org concealed type so clipboard
+     managers skip it, and clears it after a delay unless something else was
+     copied.
+===============================================================================
+ CHANGELOG
+===============================================================================
+ Version   Date         Author    Description
+ -------   ----------   -------   --------------------------------------------
+ 3.0.0     2026-11-23   joshua    New file.
+                        claude
+===============================================================================
+*/
+
 import AppKit
 
 /// Copies a secret so clipboard managers skip it (nspasteboard.org concealed

@@ -1,0 +1,40 @@
+name: AD Tests
+
+# Throwaway Samba AD domain controller with the legacy LAPS schema and the
+# Windows LAPS schema (provisioning shared with macOSLAPS). verify-readers.sh
+# checks the domain the way LAPSLens uses it: a helpdesk tech in "LAPS Readers"
+# reads both schemas by computer name over LDAPS and StartTLS, can force a
+# rotation, and an ordinary user can't. Stage 2 (a macOS runner running the
+# LAPSLens LDAP client against this DC over Tailscale, as macOSLAPS's ad-mac
+# job does) lands with the Active Directory source.
+
+on:
+  push:
+    branches: [main, "claude/**"]
+  pull_request:
+    paths-ignore:
+      - 'docs/**'
+      - '**.md'
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+permissions:
+  contents: read
+
+jobs:
+  samba-dc:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v7
+      - name: Provision Samba AD DC with LAPS schemas
+        env:
+          ADMINPASS: ${{ format('Ci-{0}-Adm!', github.run_id) }}
+        run: sudo -E bash .github/scripts/samba/provision-dc.sh
+      - name: Verify helpdesk reads over LDAPS
+        env:
+          ADMINPASS: ${{ format('Ci-{0}-Adm!', github.run_id) }}
+        run: sudo -E bash .github/scripts/samba/verify-readers.sh
