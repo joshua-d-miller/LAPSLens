@@ -1,0 +1,11 @@
+# Keeps the actions in .github/workflows (checkout, CodeQL) up to date
+# with monthly pull requests.
+version: 2
+updates:
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: monthly
+    groups:
+      actions:
+        patterns: ['*']
