@@ -53,6 +53,8 @@ jobs:
             build-mode: none
     steps:
       - uses: actions/checkout@v7
+        with:
+          persist-credentials: false # the build never needs the token
 
       - uses: github/codeql-action/init@v4
         with:
@@ -64,11 +66,24 @@ jobs:
 
       - name: Build for analysis
         if: matrix.language == 'swift'
+        timeout-minutes: 15
         run: |
           xcodebuild -version
+          # 2.0.0's project points its asset catalog (the app icon) at a
+          # folder outside the repository, ../../../../Desktop, so a fresh
+          # checkout doesn't have it. An empty catalog there, with no app
+          # icon asked for, lets the Swift code build for analysis; the
+          # icon doesn't matter to CodeQL. Remove this once the project
+          # keeps its catalog in the repository.
+          catalog="LAPS for macOS/../../../../Desktop/Assets.xcassets"
+          if [ ! -d "$catalog" ]; then
+            mkdir -p "$catalog"
+            echo '{"info":{"version":1,"author":"xcode"}}' > "$catalog/Contents.json"
+          fi
           xcodebuild -project "LAPS for macOS.xcodeproj" \
             -target "LAPS for macOS" -configuration Release \
             ONLY_ACTIVE_ARCH=YES MACOSX_DEPLOYMENT_TARGET=11.0 \
+            ASSETCATALOG_COMPILER_APPICON_NAME= \
             CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO \
             clean build
 
