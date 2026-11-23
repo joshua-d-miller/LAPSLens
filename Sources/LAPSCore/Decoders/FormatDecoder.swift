@@ -1,3 +1,10 @@
+//
+//  FormatDecoder.swift
+//  LAPS for macOS
+//
+//  Created by Joshua D. Miller.
+//  Copyright (c) 2026 Joshua D. Miller. MIT License.
+//
 import Foundation
 
 /// Turns a raw value read from a source (AD attribute, Jamf EA, Graph response,

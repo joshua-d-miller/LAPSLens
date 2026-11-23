@@ -1,3 +1,10 @@
+//
+//  PhoneticReadout.swift
+//  LAPS for macOS
+//
+//  Created by Joshua D. Miller.
+//  Copyright (c) 2026 Joshua D. Miller. MIT License.
+//
 import Foundation
 
 /// Spells a password for reading aloud over the phone to a user at the Mac,

@@ -1,3 +1,10 @@
+//
+//  WindowsFileTime.swift
+//  LAPS for macOS
+//
+//  Created by Joshua D. Miller.
+//  Copyright (c) 2026 Joshua D. Miller. MIT License.
+//
 import Foundation
 
 /// Windows FILETIME: 100-nanosecond intervals since 1601-01-01 UTC.

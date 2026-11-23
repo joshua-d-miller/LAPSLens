@@ -1,3 +1,10 @@
+//
+//  LAPSCredential.swift
+//  LAPS for macOS
+//
+//  Created by Joshua D. Miller.
+//  Copyright (c) 2026 Joshua D. Miller. MIT License.
+//
 import Foundation
 
 /// The storage format a LAPS value was written in.
