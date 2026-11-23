@@ -1,0 +1,118 @@
+{
+  "$comment": "Shared format test vectors. Every LAPSLens implementation (Swift, and later C#) must pass all of these. Use 'input' for UTF-8 text or 'inputBase64' for binary values. 'format' pins the decoder; omit it for auto-detection. Dates are ISO 8601 UTC and compared to the millisecond.",
+  "version": 1,
+  "vectors": [
+    {
+      "name": "plaintext-simple",
+      "input": "Correct-Horse-9",
+      "expect": {
+        "format": "plaintext",
+        "password": "Correct-Horse-9"
+      }
+    },
+    {
+      "name": "plaintext-strips-trailing-crlf-only",
+      "input": " pa ss \r\n",
+      "expect": {
+        "format": "plaintext",
+        "password": " pa ss "
+      }
+    },
+    {
+      "name": "plaintext-leading-brace-not-json",
+      "input": "{notjson",
+      "expect": {
+        "format": "plaintext",
+        "password": "{notjson"
+      }
+    },
+    {
+      "name": "plaintext-json-without-laps-keys",
+      "input": "{\"a\":1}",
+      "expect": {
+        "format": "plaintext",
+        "password": "{\"a\":1}"
+      }
+    },
+    {
+      "name": "plaintext-short-base64-looking",
+      "input": "MIIBaGVsbG8=",
+      "expect": {
+        "format": "plaintext",
+        "password": "MIIBaGVsbG8="
+      }
+    },
+    {
+      "name": "empty",
+      "input": "",
+      "expectError": "empty"
+    },
+    {
+      "name": "newline-only",
+      "input": "\n",
+      "expectError": "empty"
+    },
+    {
+      "name": "windows-laps-json",
+      "input": "{\"n\":\"Administrator\",\"t\":\"1d8161b41c41cde\",\"p\":\"A1b2-C3d4\"}",
+      "expect": {
+        "format": "windowsLAPSJSON",
+        "password": "A1b2-C3d4",
+        "account": "Administrator",
+        "setDate": "2022-01-30T20:52:13.072Z"
+      }
+    },
+    {
+      "name": "windows-laps-json-pinned-as-plaintext",
+      "input": "{\"n\":\"x\",\"p\":\"y\"}",
+      "format": "plaintext",
+      "expect": {
+        "format": "plaintext",
+        "password": "{\"n\":\"x\",\"p\":\"y\"}"
+      }
+    },
+    {
+      "name": "entra-newest-credential-wins",
+      "input": "{\"deviceName\": \"LAPTOP-1\", \"credentials\": [{\"accountName\": \"admin\", \"backupDateTime\": \"2026-01-01T10:00:00Z\", \"passwordBase64\": \"T2xkUGFzc3dvcmQ=\"}, {\"accountName\": \"admin\", \"backupDateTime\": \"2026-02-01T10:00:00.1234567Z\", \"passwordBase64\": \"TmV3UGFzc3dvcmQh\"}]}",
+      "expect": {
+        "format": "entraDeviceLocalCredential",
+        "password": "NewPassword!",
+        "account": "admin",
+        "setDate": "2026-02-01T10:00:00.123Z"
+      }
+    },
+    {
+      "name": "entra-single-credential-object",
+      "input": "{\"accountName\": \"localadmin\", \"backupDateTime\": \"2026-03-05T08:30:00Z\", \"passwordBase64\": \"U2luZ2xlIzE=\"}",
+      "expect": {
+        "format": "entraDeviceLocalCredential",
+        "password": "Single#1",
+        "account": "localadmin",
+        "setDate": "2026-03-05T08:30:00.000Z"
+      }
+    },
+    {
+      "name": "entra-bad-base64",
+      "input": "{\"credentials\":[{\"accountName\":\"admin\",\"passwordBase64\":\"***\"}]}",
+      "expectError": "malformed"
+    },
+    {
+      "name": "macoslaps-escrow-pem",
+      "input": "-----BEGIN PKCS7-----\nMIIB...\n-----END PKCS7-----",
+      "expectError": "unsupported",
+      "expectFormat": "macOSLAPSEscrow"
+    },
+    {
+      "name": "macoslaps-escrow-der",
+      "inputBase64": "MIIBAAYJKoZIhvcNAQcDoP/+gA==",
+      "expectError": "unsupported",
+      "expectFormat": "macOSLAPSEscrow"
+    },
+    {
+      "name": "windows-laps-encrypted-binary",
+      "inputBase64": "wyigof/+AAE=",
+      "expectError": "unsupported",
+      "expectFormat": "windowsLAPSEncrypted"
+    }
+  ]
+}

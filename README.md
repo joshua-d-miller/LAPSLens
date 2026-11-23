@@ -1,14 +1,35 @@
-# LAPS for macOS
-A macOS Application for retrieving LAPS AD Passwords
+# LAPSLens
 
-With this application you can enter your Active Directory credentials that can read LAPS passwords and save them to your keychain. Just enter the computer name and pull the password by clicking *Get Password*. You can also reset the password which will set an expiration date of January 1, 2001 by clicking *Reset Password*
+**Read any LAPS password, wherever your organization stores it.**
 
-![LAPS](https://github.com/joshua-d-miller/LAPS-for-macOS/blob/master/Screen%20Shot.png "LAPS UI")
+LAPSLens (formerly *LAPS for macOS*) is an open-source app for admins and helpdesk techs to look up a local administrator password for a Mac or Windows computer. It reads whatever format the org already uses (macOSLAPS, Windows LAPS, legacy Microsoft LAPS, or MDM built-in LAPS) from wherever it lives: Active Directory, Jamf Pro, Entra ID / Intune, or any MDM. It needs no infrastructure of its own.
 
-Icons made by Freepik http://www.freepik.com from Flaticon https://www.flaticon.com/ is licensed by Creative Commons BY 3.0 - http://creativecommons.org/licenses/by/3.0/"
+> **Status:** 3.0 is a ground-up rewrite and is in early development. The last release of the original app is tagged [`2.0.0(515)`](https://github.com/joshua-d-miller/LAPSLens/releases/tag/2.0.0(515)).
 
----
+## Roadmap
+| Phase | Platform | Scope |
+|---|---|---|
+| **A (now)** | macOS (SwiftUI, sandboxed, App Store-ready) | Paste → Active Directory → Jamf Pro → Entra/Intune, then Custom REST for any MDM |
+| B | iOS / iPadOS | Shares the Swift core and most SwiftUI views |
+| C | Windows / Linux | Separate app (C#/.NET + Avalonia planned), kept consistent through shared test vectors |
 
-## 3.0 rewrite (in progress)
+See [docs/DESIGN.md](docs/DESIGN.md), [docs/PERMISSIONS.md](docs/PERMISSIONS.md) and [docs/TESTING.md](docs/TESTING.md).
 
-LAPS for macOS is being rewritten as **LAPSLens**, a universal LAPS password reader (Active Directory, Jamf Pro, Entra/Intune, then any MDM). See [docs/DESIGN.md](docs/DESIGN.md), [docs/PERMISSIONS.md](docs/PERMISSIONS.md) and [docs/TESTING.md](docs/TESTING.md). The 2.0 AppKit sources above remain until the new app target replaces them.
+## Repository layout
+| Path | What |
+|---|---|
+| `LAPSCore/` | Platform-neutral Swift package: format detection/decoding, Windows time helpers, phonetic readout, display helpers. Builds and tests on macOS and Linux. |
+| `Apple/` | The app. `project.yml` (XcodeGen), `Shared/` (SwiftUI shared with the future iOS app), `macOS/` (Mac-specific code). |
+| `Spec/vectors/` | Language-neutral test cases every LAPSLens implementation must pass. |
+| `docs/` | Design, permissions, testing plan. |
+
+## Building
+```bash
+brew install xcodegen
+xcodegen generate --spec Apple/project.yml
+open Apple/LAPSLens.xcodeproj
+```
+Core tests: `cd LAPSCore && swift test`.
+
+## Credits
+Created by Joshua D. Miller. Originally developed at The Pennsylvania State University. MIT License.

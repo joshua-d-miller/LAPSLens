@@ -1,0 +1,62 @@
+# LAPSLens Xcode project, generated with XcodeGen:
+#   brew install xcodegen
+#   xcodegen generate --spec Apple/project.yml
+#   open Apple/LAPSLens.xcodeproj
+# The generated .xcodeproj is not committed; this file is the source of truth.
+name: LAPSLens
+
+options:
+  bundleIdPrefix: com.joshua-d-miller
+  deploymentTarget:
+    macOS: "14.0"
+  createIntermediateGroups: true
+
+settings:
+  base:
+    SWIFT_VERSION: "6.0"
+    DEVELOPMENT_TEAM: 9UYK4F9BSM
+    MARKETING_VERSION: "3.0.0"
+    CURRENT_PROJECT_VERSION: "1"
+    CODE_SIGN_STYLE: Automatic
+    ENABLE_USER_SCRIPT_SANDBOXING: YES
+    DEAD_CODE_STRIPPING: YES
+
+packages:
+  LAPSCore:
+    path: ../LAPSCore
+
+targets:
+  LAPSLens:
+    type: application
+    platform: macOS
+    sources:
+      - path: Shared
+      - path: macOS
+    dependencies:
+      - package: LAPSCore
+    entitlements:
+      path: macOS/LAPSLens.entitlements
+      properties:
+        com.apple.security.app-sandbox: true
+        com.apple.security.network.client: true
+    settings:
+      base:
+        PRODUCT_NAME: LAPSLens
+        PRODUCT_BUNDLE_IDENTIFIER: com.joshua-d-miller.lapslens
+        GENERATE_INFOPLIST_FILE: YES
+        INFOPLIST_KEY_CFBundleDisplayName: LAPSLens
+        INFOPLIST_KEY_LSApplicationCategoryType: public.app-category.utilities
+        INFOPLIST_KEY_NSHumanReadableCopyright: "Copyright © 2018 The Pennsylvania State University. Copyright © 2026 Joshua D. Miller."
+        ENABLE_HARDENED_RUNTIME: YES
+        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
+        ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME: AccentColor
+
+schemes:
+  LAPSLens:
+    build:
+      targets:
+        LAPSLens: all
+    run:
+      config: Debug
+    archive:
+      config: Release

@@ -2,7 +2,7 @@ name: CI
 
 on:
   push:
-    branches: [main, master, "claude/**"]
+    branches: [main, "claude/**"]
   pull_request:
   workflow_dispatch:
 
@@ -17,6 +17,9 @@ jobs:
   core-macos:
     name: LAPSCore (macOS)
     runs-on: macos-15
+    defaults:
+      run:
+        working-directory: LAPSCore
     steps:
       - uses: actions/checkout@v4
       - name: Toolchain
@@ -25,17 +28,41 @@ jobs:
         run: swift test --parallel
 
   core-linux:
-    # Cheap second opinion: LAPSCore must stay free of Apple-only frameworks
-    # so the format layer can be tested anywhere.
+    # LAPSCore must stay free of Apple-only frameworks so the format layer
+    # can be tested anywhere.
     name: LAPSCore (Linux)
     runs-on: ubuntu-latest
     container: swift:6.1
+    defaults:
+      run:
+        working-directory: LAPSCore
     steps:
       - uses: actions/checkout@v4
       - name: Build and test
         run: swift test --parallel
 
+  app-macos:
+    name: LAPSLens app (macOS)
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v4
+      - name: Xcode
+        run: xcodebuild -version
+      - name: Install XcodeGen
+        run: brew install xcodegen
+      - name: Generate project
+        run: xcodegen generate --spec Apple/project.yml
+      - name: Build (unsigned)
+        run: |
+          xcodebuild build \
+            -project Apple/LAPSLens.xcodeproj \
+            -scheme LAPSLens \
+            -configuration Debug \
+            -destination 'platform=macOS' \
+            -skipPackagePluginValidation \
+            CODE_SIGNING_ALLOWED=NO
+
   # Planned (see docs/TESTING.md):
-  # - app: xcodebuild build/test of the SwiftUI app once the Xcode project lands
-  # - ldap-integration: Samba AD DC service container with the LAPS schema, LDAPS bind + read
-  # - live: Jamf / Entra smoke tests against test tenants, gated on repository secrets
+  # - ldap-integration: Samba AD DC service container with the LAPS schema
+  # - live: Jamf / Entra smoke tests against test tenants, gated on secrets
+  # - release: sign, notarize, staple on tag
