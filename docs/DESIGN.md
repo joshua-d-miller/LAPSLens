@@ -67,7 +67,7 @@ See [TESTING.md](TESTING.md). In short: `LAPSCore` unit tests on macOS + Linux r
 - **Swift 6 strict concurrency** from day one; `LAPSCore` stays platform-neutral (no AppKit/networking) so it tests on Linux.
 - **Localization + accessibility:** String Catalogs from the start; VoiceOver reads the phonetic version of the password on request.
 - **Logging:** `os.Logger` with privacy annotations; never log secrets, tokens or passwords.
-- **Windows LAPS encrypted in AD:** confirm it stays out of scope (needs MS-GKDI from a domain-joined Windows host). The UI explains instead of failing silently.
+- **Windows LAPS encrypted in AD:** feasible on macOS (MS-GKDI over DCERPC with Kerberos). Planned as a milestone after the AD source; see [research/encrypted-windows-laps.md](research/encrypted-windows-laps.md). Until then the UI explains instead of failing silently.
 - **Kerberos:** if the tech's Mac has a TGT (Platform SSO / Kerberos SSO extension), AD bind without typing a password.
 
 ## Goal
@@ -81,7 +81,7 @@ Two independent, pluggable layers so new tools are a small addition, not a new p
 |---|---|
 | Plaintext | Shown as-is |
 | Windows LAPS JSON (`msLAPS-Password`, Entra `passwordBase64`) | Parse account / password / timestamp; base64-decode where needed |
-| Windows LAPS encrypted (AD, MS-GKDI) | Unsupported (note in UI) |
+| Windows LAPS encrypted (AD, MS-GKDI) | Planned after the AD source: blob + DC `GetKey` as the tech (Kerberos), decrypted locally. Note in UI until then ([research](research/encrypted-windows-laps.md)) |
 | macOSLAPS CMS escrow | Decrypt locally with the admin's cert/private key (keychain or smart card/YubiKey); key never leaves the admin's Mac |
 | Vendor-specific JSON/wrapped values | Small decoder per known tool, community-contributed |
 

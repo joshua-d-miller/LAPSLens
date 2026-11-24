@@ -5,17 +5,19 @@
  Version:   3.0.0
  Author:    Joshua D. Miller, Claude
  Created:   2026-11-23
- Updated:   2026-11-23
+ Updated:   2026-11-24
 
  Purpose:
      Detects and decodes a raw LAPS value: plaintext, Windows LAPS JSON, Entra
      / Graph responses. Recognises macOSLAPS CMS escrow and Windows LAPS
-     encrypted blobs and explains why they can't be read.
+     encrypted blobs and explains that they can't be read yet.
 ===============================================================================
  CHANGELOG
 ===============================================================================
  Version   Date         Author    Description
  -------   ----------   -------   --------------------------------------------
+ 3.0.0     2026-11-24   joshua    Encrypted Windows LAPS: "not supported yet"
+                        claude    (decryption is planned), not "Windows only".
  3.0.0     2026-11-23   joshua    New file.
                         claude
 ===============================================================================
@@ -41,7 +43,7 @@ public enum FormatDecoder {
             return try EntraCredentialDecoder.decode(raw)
         case .windowsLAPSEncrypted:
             throw LAPSDecodeError.unsupported(.windowsLAPSEncrypted, reason:
-                "Windows LAPS encrypted passwords can only be decrypted by a domain-joined Windows device (MS-GKDI). Read it with Windows LAPS tools, or store it unencrypted / in Entra.")
+                "This Windows LAPS password is encrypted. Decrypting it needs a domain controller, which LAPSLens doesn't support yet (planned). Read it with Windows LAPS tools for now.")
         case .macOSLAPSEscrow:
             throw LAPSDecodeError.unsupported(.macOSLAPSEscrow, reason:
                 "macOSLAPS escrow decryption arrives with the macOSLAPS 4.0 escrow format. Use Decrypt escrow in macOSLAPS.app for now.")
