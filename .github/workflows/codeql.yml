@@ -1,0 +1,86 @@
+name: CodeQL
+
+# GitHub's code scanning (free for public repositories). It reads the Swift
+# code as it's compiled, and this workflow, for security problems: an LDAP
+# filter made from untrusted text, a password reaching a log, weak
+# cryptography, insecure Keychain use. Findings show up on the pull request
+# and under Security → Code scanning.
+#
+# Runs on pull requests, on main (the baseline pull requests are compared
+# with) and weekly, since new checks arrive with CodeQL updates even when
+# the code hasn't changed. The build is for analysis only: unsigned, one
+# architecture. The project has no shared scheme, so it builds the target;
+# the deployment target is raised to 11.0 because current Xcode no longer
+# builds for 10.11 (it doesn't change the app).
+#
+# Watching the build makes it slow: expect about 10-15 minutes.
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    paths-ignore:
+      - '**.md'
+      - '**.png'
+  schedule:
+    - cron: '29 10 * * 4'
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+permissions:
+  contents: read
+
+jobs:
+  analyze:
+    name: Analyze (${{ matrix.language }})
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 45
+    permissions:
+      contents: read
+      security-events: write # to report what it finds
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          # Swift is analyzed while it's compiled, on a Mac.
+          - language: swift
+            runner: macos-26
+            build-mode: manual
+          # The workflows need no build.
+          - language: actions
+            runner: ubuntu-latest
+            build-mode: none
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false # the build never needs the token
+
+      - uses: github/codeql-action/init@v4
+        with:
+          languages: ${{ matrix.language }}
+          build-mode: ${{ matrix.build-mode }}
+          # The standard security checks plus the extended set: more
+          # findings, a few of them less certain.
+          queries: security-extended
+
+      - name: Build for analysis
+        if: matrix.language == 'swift'
+        timeout-minutes: 30
+        # Every compiler call is watched by CodeQL, which makes it slow, so
+        # this builds Apple silicon only (the code is the same on Intel).
+        # 2.0.0's asset catalog lives outside the repository
+        # (../../../../Desktop); Xcode only warns that it's missing, and the
+        # app icon doesn't matter to CodeQL.
+        run: |
+          xcodebuild -project "LAPS for macOS.xcodeproj" \
+            -target "LAPS for macOS" -configuration Release \
+            ARCHS=arm64 ONLY_ACTIVE_ARCH=NO MACOSX_DEPLOYMENT_TARGET=11.0 \
+            CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO \
+            clean build
+
+      - uses: github/codeql-action/analyze@v4
+        with:
+          category: /language:${{ matrix.language }}

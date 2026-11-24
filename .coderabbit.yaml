@@ -1,0 +1,38 @@
+# yaml-language-server: $schema=https://coderabbit.ai/integrations/schema.v2.json
+# CodeRabbit's pull request reviews (free for public repositories). It
+# reviews each pull request on its own; comment "@coderabbitai review" to ask
+# again after more pushes.
+language: en-US
+tone_instructions: 'Be brief and concrete. Lead with security and correctness problems, then real inefficiencies. Skip pure style.'
+reviews:
+  profile: chill # fewer nitpicks; security and bugs are still reported
+  request_changes_workflow: false # comments only; the maintainer approves
+  high_level_summary: true
+  poem: false
+  sequence_diagrams: false
+  collapse_walkthrough: true
+  auto_review:
+    enabled: true
+    drafts: false
+  path_filters:
+    - '!**/*.xcodeproj/**'
+    - '!**/xcuserdata/**'
+  path_instructions:
+    - path: '**/*.swift'
+      instructions: >-
+        LAPSLens is a macOS app that IT staff use to read and reset LAPS
+        passwords from Active Directory with their own AD credentials, which
+        it saves in the Keychain. Check security first: AD credentials and
+        retrieved passwords must never reach a log, a crash message, a file
+        or a command line; Keychain items use an appropriate access level;
+        LDAP filters built from the computer name are escaped; connections
+        to the directory are encrypted or the risk is made clear; a password
+        copied to the clipboard isn't left there indefinitely. Then
+        correctness (errors shown to the user rather than swallowed, work
+        kept off the main thread) and real inefficiencies.
+    - path: '.github/**'
+      instructions: >-
+        Check for script injection from pull request titles, branch names or
+        other event text in run steps, and permissions broader than needed.
+chat:
+  auto_reply: true
